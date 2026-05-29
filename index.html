@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SensorSymphony — Live Engine Sensor Simulator</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<style>
+:root {
+  --bg: #06090f;
+  --surface: #0d1117;
+  --surface2: #161b22;
+  --border: #21262d;
+  --text: #e6edf3;
+  --muted: #7d8590;
+  --ckp: #ff6b4a;
+  --cmp: #4da6ff;
+  --green: #3ddc84;
+  --yellow: #ffb347;
+  --purple: #c084fc;
+  --glow-ckp: rgba(255,107,74,0.5);
+  --glow-cmp: rgba(77,166,255,0.5);
+  --glow-green: rgba(61,220,132,0.5);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  overflow-x: hidden;
+}
+
+/* ===== CANVAS BACKGROUND ===== */
+#bgCanvas {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* ===== TOP BAR ===== */
+.topbar {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  background: rgba(6,9,15,0.95);
+  backdrop-filter: blur(15px);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.logo {
+  font-family: 'Syne', sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.logo:hover { color: #fff; }
+.logo .icon { font-size: 26px; }
+
+.sensor-tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.tab-btn {
+  padding: 10px 20px;
+  border-radius: 50px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.3s;
+  white-space: nowrap;
+}
+
+.tab-btn:hover {
+  border-color: #fff;
+  color: #fff;
+}
+
+.tab-btn.active-ckp {
+  background: rgba(255,107,74,0.15);
+  border-color: var(--ckp);
+  color: var(--ckp);
+  box-shadow: 0 0 20px var(--glow-ckp);
+}
+
+.tab-btn.active-cmp {
+  background: rgba(77,166,255,0.15);
+  border-color: var(--cmp);
+  color: var(--cmp);
+  box-shadow: 0 0 20px var(--glow-cmp);
+}
+
+.tab-btn.active-both {
+  background: rgba(192,132,252,0.15);
+  border-color: var(--purple);
+  color: var(--purple);
+  box-shadow: 0 0 20px rgba(192,132,252,0.5);
+}
+
+/* ===== MAIN LAYOUT ===== */
+.main-container {
+  position: relative;
+  z-index: 10;
+  margin-top: 80px;
+  padding: 20px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto;
+  gap: 20px;
+  max-width: 1400px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+@media (max-width: 1100px) {
+  .main-container { grid-template-columns: 1fr; }
+}
+
+/* ===== PANELS ===== */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  position: relative;
+}
+
+.panel-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.panel-body {
+  padding: 20px;
+  position: relative;
+}
+
+.panel-full {
+  grid-column: 1 / -1;
+}
+
+/* ===== ENGINE ANIMATION PANEL ===== */
+#enginePanel {
+  grid-column: 1 / -1;
+  min-height: 450px;
+}
+
+/* ===== SIGNAL OSCILLOSCOPE ===== */
+#scopePanel {
+  min-height: 300px;
+}
+
+/* ===== ECU DECISION PANEL ===== */
+#ecuPanel {
+  min-height: 300px;
+}
+
+/* ===== DIAGNOSIS PANEL ===== */
+#diagPanel {
+  min-height: 250px;
+}
+
+/* ===== STATUS INDICATORS ===== */
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.status-dot.active { background: var(--green); box-shadow: 0 0 10px var(--glow-green); }
+.status-dot.inactive { background: #555; animation: none; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ===== LIVE DATA DISPLAY ===== */
+.data-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+}
+
+.data-label { color: var(--muted); }
+.data-value { font-weight: 600; }
+
+.data-value.ckp-color { color: var(--ckp); }
+.data-value.cmp-color { color: var(--cmp); }
+.data-value.green-color { color: var(--green); }
+.data-value.yellow-color { color: var(--yellow); }
+
+/* ===== RPM DISPLAY ===== */
+.rpm-display {
+  text-align: center;
+  padding: 20px;
+}
+
+.rpm-number {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 72px;
+  font-weight: 700;
+  background: linear-gradient(180deg, #fff 0%, #888 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1;
+}
+
+.rpm-label {
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  margin-top: 5px;
+}
+
+/* ===== CONTROLS ===== */
+.controls {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 15px 0;
+}
+
+.ctrl-btn {
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: #fff;
+  cursor: pointer;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  transition: all 0.3s;
+}
+
+.ctrl-btn:hover {
+  border-color: #fff;
+  background: var(--surface);
+}
+
+.ctrl-btn.active {
+  border-color: var(--green);
+  background: rgba(61,220,132,0.1);
+}
+
+.slider-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 200px;
+}
+
+.slider-container input[type="range"] {
+  flex: 1;
+  accent-color: var(--ckp);
+  height: 6px;
+}
+
+.slider-label {
+  color: var(--muted);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+/* ===== FAULT BUTTONS ===== */
+.fault-btn {
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 1px solid #ff4444;
+  background: rgba(255,68,68,0.1);
+  color: #ff4444;
+  cursor: pointer;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  transition: all 0.3s;
+}
+
+.fault-btn:hover {
+  background: rgba(255,68,68,0.2);
+}
+
+.fault-btn.active-fault {
+  background: rgba(255,68,68,0.3);
+  animation: pulse 0.8s ease-in-out infinite;
+}
+
+/* ===== ANIMATION KEYFRAMES ===== */
+@keyframes sparkFlash {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
+}
+
+@keyframes injectorSpray {
+  0% { transform: scaleY(0); opacity: 0; }
+  50% { transform: scaleY(1); opacity: 1; }
+  100% { transform: scaleY(0); opacity: 0; }
+}
+
+@keyframes signalPropagate {
+  0% { stroke-dashoffset: 300; }
+  100% { stroke-dashoffset: 0; }
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+  .topbar { padding: 10px 15px; }
+  .tab-btn { padding: 8px 14px; font-size: 10px; }
+  .rpm-number { font-size: 48px; }
+  .panel-body { padding: 12px; }
+}
+</style>
+</head>
+<body>
+
+<!-- Background Particles -->
+<canvas id="bgCanvas"></canvas>
+
+<!-- ===== TOP NAVIGATION BAR ===== -->
+<div class="topbar">
+  <div class="logo" onclick="location.reload()">
+    <span class="icon">🔬</span> SensorSymphony
+  </div>
+  
+  <div class="sensor-tabs">
+    <button class="tab-btn active-both" id="tabBoth" onclick="switchView('both')">
+      ⚙️🎯 Full System
+    </button>
+    <button class="tab-btn" id="tabCKP" onclick="switchView('ckp')">
+      ⚙️ CKP Focus
+    </button>
+    <button class="tab-btn" id="tabCMP" onclick="switchView('cmp')">
+      🎯 CMP Focus
+    </button>
+  </div>
+  
+  <div class="controls">
+    <div class="slider-container">
+      <span class="slider-label">RPM</span>
+      <input type="range" id="rpmSlider" min="600" max="6000" value="2000" step="100" oninput="updateRPM(this.value)">
+      <span class="slider-label" id="rpmValue" style="color:var(--ckp);">2000</span>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MAIN SIMULATION AREA ===== -->
+<div class="main-container">
+
+  <!-- ===== ENGINE SIMULATION PANEL ===== -->
+  <div class="panel panel-full" id="enginePanel">
+    <div class="panel-header">
+      <span>🔧 LIVE ENGINE SIMULATION</span>
+      <span>
+        <span class="status-dot active" id="ckpStatus"></span> CKP &nbsp;
+        <span class="status-dot active" id="cmpStatus"></span> CMP &nbsp;
+        <span class="status-dot active" id="ecuStatus"></span> ECU
+      </span>
+    </div>
+    <div class="panel-body">
+      <svg id="engineSVG" viewBox="0 0 1200 450" width="100%" style="display:block;"></svg>
+    </div>
+  </div>
+
+  <!-- ===== OSCILLOSCOPE PANEL ===== -->
+  <div class="panel" id="scopePanel">
+    <div class="panel-header">
+      <span>📊 SIGNAL OSCILLOSCOPE</span>
+      <span style="color:var(--ckp);">CKP <span style="color:var(--cmp);">| CMP</span></span>
+    </div>
+    <div class="panel-body">
+      <svg id="scopeSVG" viewBox="0 0 550 280" width="100%" style="display:block;"></svg>
+    </div>
+  </div>
+
+  <!-- ===== ECU DECISION PANEL ===== -->
+  <div class="panel" id="ecuPanel">
+    <div class="panel-header">
+      <span>🧠 ECU REAL-TIME DECISIONS</span>
+      <span style="color:var(--green);">● PROCESSING</span>
+    </div>
+    <div class="panel-body">
+      <svg id="ecuSVG" viewBox="0 0 550 280" width="100%" style="display:block;"></svg>
+    </div>
+  </div>
+
+  <!-- ===== DIAGNOSIS PANEL ===== -->
+  <div class="panel panel-full" id="diagPanel">
+    <div class="panel-header">
+      <span>🔍 DIAGNOSIS & LIVE DATA</span>
+      <div>
+        <button class="fault-btn" id="faultCKP" onclick="toggleFault('ckp')">⚠ Simulate CKP Fault</button>
+        <button class="fault-btn" id="faultCMP" onclick="toggleFault('cmp')">⚠ Simulate CMP Fault</button>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:20px;">
+        <div>
+          <div class="data-row"><span class="data-label">Engine RPM</span><span class="data-value ckp-color" id="liveRPM">2000</span></div>
+          <div class="data-row"><span class="data-label">Crank Angle</span><span class="data-value ckp-color" id="liveAngle">0°</span></div>
+          <div class="data-row"><span class="data-label">CKP Pulses/sec</span><span class="data-value ckp-color" id="livePulses">0</span></div>
+          <div class="data-row"><span class="data-label">CKP Status</span><span class="data-value green-color" id="liveCKPStatus">OK</span></div>
+        </div>
+        <div>
+          <div class="data-row"><span class="data-label">Cam Angle</span><span class="data-value cmp-color" id="liveCamAngle">0°</span></div>
+          <div class="data-row"><span class="data-label">Current Stroke</span><span class="data-value cmp-color" id="liveStroke">Intake</span></div>
+          <div class="data-row"><span class="data-label">CMP Signal</span><span class="data-value cmp-color" id="liveCMP">LOW</span></div>
+          <div class="data-row"><span class="data-label">CMP Status</span><span class="data-value green-color" id="liveCMPStatus">OK</span></div>
+        </div>
+        <div>
+          <div class="data-row"><span class="data-label">Fuel Injection</span><span class="data-value yellow-color" id="liveInjection">Waiting...</span></div>
+          <div class="data-row"><span class="data-label">Ignition Spark</span><span class="data-value yellow-color" id="liveSpark">Waiting...</span></div>
+          <div class="data-row"><span class="data-label">ECU Mode</span><span class="data-value green-color" id="liveECUMode">Sequential</span></div>
+          <div class="data-row"><span class="data-label">DTC Codes</span><span class="data-value" id="liveDTC">None</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ===== GLOBAL STATE =====
+let rpm = 2000;
+let crankAngle = 0;
+let camAngle = 0;
+let currentView = 'both';
+let ckpFault = false;
+let cmpFault = false;
+let animationId;
+let lastTimestamp = 0;
+
+// ===== BACKGROUND PARTICLES =====
+const bgCanvas = document.getElementById('bgCanvas');
+const bgCtx = bgCanvas.getContext('2d');
+let bgParticles = [];
+
+function resizeBG() {
+  bgCanvas.width = window.innerWidth;
+  bgCanvas.height = window.innerHeight;
+}
+
+class BGParticle {
+  constructor() {
+    this.reset();
+  }
+  reset() {
+    this.x = Math.random() * bgCanvas.width;
+    this.y = Math.random() * bgCanvas.height;
+    this.size = Math.random() * 1.5 + 0.5;
+    this.speedX = (Math.random() - 0.5) * 0.3;
+    this.speedY = (Math.random() - 0.5) * 0.3 - 0.2;
+    this.opacity = Math.random() * 0.4 + 0.1;
+  }
+  update() {
+    this.x += this.speedX;
+    this.y += this.speedY;
+    if (this.y < -10 || this.x < -10 || this.x > bgCanvas.width + 10) this.reset();
+  }
+  draw() {
+    bgCtx.beginPath();
+    bgCtx.arc(this.x, this.y, this.size, 0, Math.PI*2);
+    bgCtx.fillStyle = `rgba(255,255,255,${this.opacity})`;
+    bgCtx.fill();
+  }
+}
+
+function animateBG() {
+  bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+  bgParticles.forEach(p => { p.update(); p.draw(); });
+  requestAnimationFrame(animateBG);
+}
+
+// ===== MAIN SIMULATION ENGINE =====
+function simulateEngine(timestamp) {
+  if (!lastTimestamp) lastTimestamp = timestamp;
+  const dt = (timestamp - lastTimestamp) / 1000; // delta time in seconds
+  lastTimestamp = timestamp;
+  
+  // Calculate crank rotation based on RPM
+  const crankDegPerSec = (rpm / 60) * 360;
+  crankAngle = (crankAngle + crankDegPerSec * dt) % 720;
+  
+  // Cam rotates at half speed
+  const camDegPerSec = crankDegPerSec / 2;
+  camAngle = (camAngle + camDegPerSec * dt) % 360;
+  
+  // Determine stroke
+  let stroke;
+  if (crankAngle < 180) stroke = 'Intake';
+  else if (crankAngle < 360) stroke = 'Compression';
+  else if (crankAngle < 540) stroke = 'Power';
+  else stroke = 'Exhaust';
+  
+  // Determine if at TDC
+  const isTDC = (Math.abs(crankAngle % 360) < 3 || Math.abs(crankAngle % 360 - 360) < 3);
+  const isCompressionTDC = isTDC && stroke === 'Compression';
+  const isExhaustTDC = isTDC && stroke === 'Exhaust';
+  
+  // CMP signal logic (simplified - cam tooth at specific position)
+  const cmpSignal = (camAngle > 30 && camAngle < 60) ? 'HIGH' : 'LOW';
+  
+  // ECU decisions
+  let injectionCmd = 'Waiting...';
+  let sparkCmd = 'Waiting...';
+  let ecuMode = 'Sequential';
+  
+  if (!ckpFault && !cmpFault) {
+    // Normal operation
+    if (stroke === 'Intake' && crankAngle < 30) injectionCmd = 'INJECTING ✦';
+    if (isCompressionTDC) sparkCmd = 'SPARK! ⚡';
+    ecuMode = 'Sequential';
+  } else if (ckpFault) {
+    injectionCmd = 'NO SIGNAL';
+    sparkCmd = 'NO SIGNAL';
+    ecuMode = 'CKP FAULT!';
+  } else if (cmpFault) {
+    if (stroke === 'Intake') injectionCmd = 'INJECTING (batch)';
+    if (isTDC) sparkCmd = 'SPARK (wasted)';
+    ecuMode = 'Batch (CMP Fault)';
+  }
+  
+  // Update all visualizations
+  drawEngine(crankAngle, camAngle, stroke, isCompressionTDC, isExhaustTDC, injectionCmd, sparkCmd);
+  drawScope(crankAngle, cmpSignal);
+  drawECUDecision(crankAngle, stroke, injectionCmd, sparkCmd, ecuMode, isCompressionTDC);
+  updateLiveData(crankAngle, camAngle, stroke, cmpSignal, injectionCmd, sparkCmd, ecuMode);
+  
+  animationId = requestAnimationFrame(simulateEngine);
+}
+
+// ===== DRAW ENGINE VISUALIZATION =====
+function drawEngine(crank, cam, stroke, compTDC, exhTDC, injection, spark) {
+  const svg = document.getElementById('engineSVG');
+  if (!svg) return;
+  
+  const cx = 250, cy = 280; // Crankshaft center
+  const camX = 750, camY = 280; // Camshaft center
+  const pistonX = 250;
+  const pistonMinY = 100;
+  const pistonMaxY = 280;
+  
+  // Calculate piston position based on crank angle
+  const normalizedAngle = crank % 360;
+  const radAngle = (normalizedAngle * Math.PI) / 180;
+  const pistonY = pistonMaxY - (pistonMaxY - pistonMinY) * (1 - Math.cos(radAngle)) / 2;
+  
+  // Build SVG
+  let html = '';
+  
+  // Background grid
+  html += `<rect x="0" y="0" width="1200" height="450" fill="#06090f" rx="12"/>`;
+  
+  // ===== CYLINDER SECTION =====
+  // Cylinder walls
+  html += `<rect x="200" y="60" width="100" height="250" fill="none" stroke="#2a3344" stroke-width="2" rx="4"/>`;
+  
+  // Piston
+  html += `<rect x="210" y="${pistonY}" width="80" height="40" fill="#4a5568" stroke="#7d8590" stroke-width="2" rx="3"/>`;
+  html += `<text x="250" y="${pistonY + 25}" text-anchor="middle" fill="#fff" font-size="10" font-family="'IBM Plex Mono'">PISTON</text>`;
+  
+  // Connecting rod
+  html += `<line x1="250" y1="${pistonY + 40}" x2="${cx + 60 * Math.cos((crank - 90) * Math.PI / 180)}" y2="${cy + 60 * Math.sin((crank - 90) * Math.PI / 180)}" stroke="#ffb347" stroke-width="3"/>`;
+  
+  // Spark plug
+  html += `<rect x="240" y="50" width="20" height="20" fill="#ff6b4a" rx="3"/>`;
+  html += `<text x="250" y="64" text-anchor="middle" fill="#fff" font-size="8">SPARK</text>`;
+  if (compTDC && !ckpFault) {
+    html += `<circle cx="250" cy="45" r="15" fill="none" stroke="#ffff00" stroke-width="3" opacity="0.8">
+      <animate attributeName="r" values="10;25;10" dur="0.3s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="1;0;1" dur="0.3s" repeatCount="indefinite"/>
+    </circle>`;
+  }
+  
+  // Injector
+  html += `<rect x="310" y="60" width="15" height="30" fill="#4da6ff" rx="3"/>`;
+  html += `<text x="317" y="80" text-anchor="middle" fill="#fff" font-size="7">INJ</text>`;
+  if (injection.includes('INJECTING')) {
+    html += `<ellipse cx="317" cy="95" rx="8" ry="15" fill="#4da6ff" opacity="0.5">
+      <animate attributeName="ry" values="5;20;5" dur="0.2s" repeatCount="indefinite"/>
+    </ellipse>`;
+  }
+  
+  // ===== CRANKSHAFT =====
+  // Crank circle
+  html += `<circle cx="${cx}" cy="${cy}" r="50" fill="none" stroke="#ff6b4a" stroke-width="3"/>`;
+  html += `<circle cx="${cx}" cy="${cy}" r="8" fill="#ff6b4a"/>`;
+  
+  // Crank arm
+  const armX = cx + 45 * Math.cos((crank - 90) * Math.PI / 180);
+  const armY = cy + 45 * Math.sin((crank - 90) * Math.PI / 180);
+  html += `<line x1="${cx}" y1="${cy}" x2="${armX}" y2="${armY}" stroke="#ff6b4a" stroke-width="4" stroke-linecap="round"/>`;
+  html += `<circle cx="${armX}" cy="${armY}" r="6" fill="#ff6b4a"/>`;
+  
+  // ===== RELUCTOR WHEEL =====
+  const reluctorCX = cx + 150, reluctorCY = cy;
+  html += `<circle cx="${reluctorCX}" cy="${reluctorCY}" r="65" fill="none" stroke="#2a3344" stroke-width="2"/>`;
+  
+  // Draw 58 teeth (skip 2)
+  for (let i = 0; i < 60; i++) {
+    if (i === 0 || i === 1) continue; // Missing teeth
+    const toothAngle = (i * 6 + crank) * Math.PI / 180;
+    const x1 = reluctorCX + 55 * Math.cos(toothAngle);
+    const y1 = reluctorCY + 55 * Math.sin(toothAngle);
+    const x2 = reluctorCX + 68 * Math.cos(toothAngle);
+    const y2 = reluctorCY + 68 * Math.sin(toothAngle);
+    html += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#3ddc84" stroke-width="3" stroke-linecap="round"/>`;
+  }
+  
+  // Missing teeth indicator
+  const missingAngle = (0 + crank) * Math.PI / 180;
+  html += `<circle cx="${reluctorCX + 61 * Math.cos(missingAngle)}" cy="${reluctorCY + 61 * Math.sin(missingAngle)}" r="8" fill="none" stroke="#ff6b4a" stroke-width="3">
+    <animate attributeName="r" values="6;12;6" dur="1s" repeatCount="indefinite"/>
+  </circle>`;
+  html += `<text x="${reluctorCX}" y="${reluctorCY - 80}" text-anchor="middle" fill="#ff6b4a" font-size="10" font-family="'IBM Plex Mono'">MISSING 2 TEETH</text>`;
+  
+  // ===== CKP SENSOR =====
+  const sensorX = reluctorCX + 80, sensorY = reluctorCY;
+  html += `<rect x="${sensorX - 10}" y="${sensorY - 30}" width="25" height="60" fill="#1a2230" stroke="#ff6b4a" stroke-width="2" rx="5"/>`;
+  html += `<text x="${sensorX + 2}" y="${sensorY - 8}" fill="#ff6b4a" font-size="8" font-family="'IBM Plex Mono'" text-anchor="middle">CKP</text>`;
+  
+  // Magnetic field visualization
+  const closestToothAngle = (Math.round(crank / 6) * 6 + crank) * Math.PI / 180;
+  const toothDist = 20;
+  html += `<ellipse cx="${sensorX - 20}" cy="${sensorY}" rx="25" ry="40" fill="none" stroke="#ffb347" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.5">
+    <animate attributeName="rx" values="20;35;20" dur="0.8s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0.3;0.7;0.3" dur="0.8s" repeatCount="indefinite"/>
+  </ellipse>`;
+  
+  // Signal wire from CKP to ECU
+  html += `<path d="M${sensorX + 15},${sensorY} Q${sensorX + 60},${sensorY} ${sensorX + 60},${sensorY - 50} L${sensorX + 200},${sensorY - 50}" 
+    fill="none" stroke="#ff6b4a" stroke-width="2" stroke-dasharray="8,4">
+    <animate attributeName="stroke-dashoffset" from="0" to="-24" dur="0.5s" repeatCount="indefinite"/>
+  </path>`;
+  
+  // ===== CAMSHAFT SECTION =====
+  html += `<circle cx="${camX}" cy="${camY}" r="45" fill="none" stroke="#4da6ff" stroke-width="3"/>`;
+  html += `<circle cx="${camX}" cy="${camY}" r="7" fill="#4da6ff"/>`;
+  
+  // Cam lobe
+  const camLobeAngle = cam * Math.PI / 180;
+  const lobeX = camX + 35 * Math.cos(camLobeAngle);
+  const lobeY = camY + 35 * Math.sin(camLobeAngle);
+  html += `<circle cx="${lobeX}" cy="${lobeY}" r="10" fill="#4da6ff" opacity="0.7"/>`;
+  
+  // Cam target tooth
+  html += `<rect x="${camX + 30}" y="${camY - 10}" width="20" height="20" fill="#c084fc" rx="3">
+    <animate attributeName="opacity" values="0.6;1;0.6" dur="1.5s" repeatCount="indefinite"/>
+  </rect>`;
+  
+  // CMP Sensor
+  const cmpSensorX = camX + 70, cmpSensorY = camY;
+  html += `<rect x="${cmpSensorX - 8}" y="${cmpSensorY - 25}" width="20" height="50" fill="#1a2230" stroke="#4da6ff" stroke-width="2" rx="5"/>`;
+  html += `<text x="${cmpSensorX + 2}" y="${cmpSensorY - 5}" fill="#4da6ff" font-size="8" font-family="'IBM Plex Mono'" text-anchor="middle">CMP</text>`;
+  
+  // CMP Signal wire
+  html += `<path d="M${cmpSensorX + 12},${cmpSensorY} Q${cmpSensorX + 40},${cmpSensorY} ${cmpSensorX + 40},${cmpSensorY - 40} L${cmpSensorX + 100},${cmpSensorY - 40}" 
+    fill="none" stroke="#4da6ff" stroke-width="2" stroke-dasharray="6,3">
+    <animate attributeName="stroke-dashoffset" from="0" to="-18" dur="0.4s" repeatCount="indefinite"/>
+  </path>`;
+  
+  // ===== ECU BOX =====
+  const ecuX = 1000, ecuY = 200;
+  html += `<rect x="${ecuX}" y="${ecuY}" width="140" height="90" fill="#1a2230" stroke="#c084fc" stroke-width="2" rx="8"/>`;
+  html += `<text x="${ecuX + 70}" y="${ecuY + 30}" text-anchor="middle" fill="#c084fc" font-size="12" font-family="'IBM Plex Mono'" font-weight="bold">ECU</text>`;
+  html += `<text x="${ecuX + 70}" y="${ecuY + 55}" text-anchor="middle" fill="#7d8590" font-size="9" font-family="'IBM Plex Mono'">Processing</text>`;
+  
+  // ECU status indicators
+  html += `<circle cx="${ecuX + 20}" cy="${ecuY + 75}" r="4" fill="${ckpFault ? '#ff4444' : '#3ddc84'}"/>`;
+  html += `<circle cx="${ecuX + 50}" cy="${ecuY + 75}" r="4" fill="${cmpFault ? '#ff4444' : '#3ddc84'}"/>`;
+  html += `<circle cx="${ecuX + 80}" cy="${ecuY + 75}" r="4" fill="${(ckpFault || cmpFault) ? '#ff4444' : '#3ddc84'}"/>`;
+  
+  // Stroke label
+  html += `<text x="250" y="370" text-anchor="middle" fill="#fff" font-size="16" font-family="'Syne',sans-serif'" font-weight="bold">${stroke.toUpperCase()} STROKE</text>`;
+  html += `<text x="250" y="390" text-anchor="middle" fill="#7d8590" font-size="11" font-family="'IBM Plex Mono'">Crank: ${Math.round(crank % 360)}° | Cam: ${Math.round(cam)}°</text>`;
+  
+  // Legend
+  html += `<rect x="500" y="400" width="12" height="12" fill="#ff6b4a" rx="2"/><text x="518" y="410" fill="#7d8590" font-size="9">CKP</text>`;
+  html += `<rect x="560" y="400" width="12" height="12" fill="#4da6ff" rx="2"/><text x="578" y="410" fill="#7d8590" font-size="9">CMP</text>`;
+  html += `<rect x="620" y="400" width="12" height="12" fill="#c084fc" rx="2"/><text x="638" y="410" fill="#7d8590" font-size="9">ECU</text>`;
+  
+  svg.innerHTML = html;
+}
+
+// ===== DRAW OSCILLOSCOPE =====
+function drawScope(crank, cmpSignal) {
+  const svg = document.getElementById('scopeSVG');
+  if (!svg) return;
+  
+  let html = `<rect x="0" y="0" width="550" height="280" fill="#06090f" rx="8"/>`;
+  
+  // Grid
+  for (let i = 0; i < 5; i++) {
+    html += `<line x1="50" y1="${60 + i*45}" x2="520" y2="${60 + i*45}" stroke="#1a2230" stroke-width="1"/>`;
+  }
+  
+  // Labels
+  html += `<text x="15" y="70" fill="#7d8590" font-size="8" font-family="'IBM Plex Mono'">CKP</text>`;
+  html += `<text x="15" y="160" fill="#7d8590" font-size="8" font-family="'IBM Plex Mono'">CMP</text>`;
+  html += `<text x="15" y="250" fill="#7d8590" font-size="8" font-family="'IBM Plex Mono'">SYNC</text>`;
+  
+  // CKP Waveform (sine wave from inductive sensor)
+  let ckpPath = `M50,105`;
+  for (let x = 0; x <= 470; x += 3) {
+    const crankAtX = (crank + x * 2) % 360;
+    const radCrank = crankAtX * Math.PI / 180;
+    const y = 105 + Math.sin(radCrank * 6) * 30;
+    ckpPath += ` L${50 + x},${y}`;
+  }
+  html += `<path d="${ckpPath}" fill="none" stroke="#ff6b4a" stroke-width="2"/>`;
+  
+  // Missing tooth gap (shown as wider gap)
+  html += `<circle cx="250" cy="105" r="5" fill="none" stroke="#ffb347" stroke-width="2">
+    <animate attributeName="r" values="4;8;4" dur="1.5s" repeatCount="indefinite"/>
+  </circle>`;
+  
+  // CMP Square wave
+  const cmpY = cmpSignal === 'HIGH' ? 175 : 205;
+  html += `<rect x="100" y="${cmpY}" width="60" height="30" fill="#4da6ff" opacity="0.8" rx="2"/>`;
+  html += `<rect x="280" y="${cmpY}" width="60" height="30" fill="#4da6ff" opacity="0.8" rx="2"/>`;
+  html += `<text x="430" y="195" fill="#4da6ff" font-size="10" font-family="'IBM Plex Mono'">${cmpSignal}</text>`;
+  
+  // Sync indicator
+  html += `<rect x="100" y="230" width="300" height="20" fill="rgba(61,220,132,0.2)" stroke="#3ddc84" stroke-width="1" rx="4"/>`;
+  html += `<text x="250" y="244" text-anchor="middle" fill="#3ddc84" font-size="10" font-family="'IBM Plex Mono'">CKP + CMP SYNCHRONIZED ✓</text>`;
+  
+  svg.innerHTML = html;
+}
+
+// ===== DRAW ECU DECISION PANEL =====
+function drawECUDecision(crank, stroke, injection, spark, ecuMode, compTDC) {
+  const svg = document.getElementById('ecuSVG');
+  if (!svg) return;
+  
+  let html = `<rect x="0" y="0" width="550" height="280" fill="#06090f" rx="8"/>`;
+  
+  // ECU Flow Diagram
+  // Inputs
+  html += `<rect x="30" y="30" width="120" height="40" fill="#1a2230" stroke="#ff6b4a" stroke-width="2" rx="6"/>`;
+  html += `<text x="90" y="55" text-anchor="middle" fill="#ff6b4a" font-size="10" font-family="'IBM Plex Mono'">CKP Input</text>`;
+  
+  html += `<rect x="30" y="90" width="120" height="40" fill="#1a2230" stroke="#4da6ff" stroke-width="2" rx="6"/>`;
+  html += `<text x="90" y="115" text-anchor="middle" fill="#4da6ff" font-size="10" font-family="'IBM Plex Mono'">CMP Input</text>`;
+  
+  // Processing
+  html += `<rect x="215" y="50" width="140" height="60" fill="rgba(192,132,252,0.15)" stroke="#c084fc" stroke-width="2" rx="8"/>`;
+  html += `<text x="285" y="75" text-anchor="middle" fill="#c084fc" font-size="11" font-family="'IBM Plex Mono'" font-weight="bold">PROCESSOR</text>`;
+  html += `<text x="285" y="95" text-anchor="middle" fill="#7d8590" font-size="8" font-family="'IBM Plex Mono'">Angle + Stroke</text>`;
+  
+  // Arrows from inputs to processor
+  html += `<line x1="150" y1="50" x2="215" y2="65" stroke="#ff6b4a" stroke-width="2" marker-end="url(#arrowRed)"/>`;
+  html += `<line x1="150" y1="110" x2="215" y2="95" stroke="#4da6ff" stroke-width="2"/>`;
+  
+  // Output decisions
+  html += `<rect x="410" y="20" width="120" height="35" fill="${injection.includes('INJECTING') ? 'rgba(255,179,71,0.3)' : '#1a2230'}" stroke="${injection.includes('INJECTING') ? '#ffb347' : '#2a3344'}" stroke-width="2" rx="6"/>`;
+  html += `<text x="470" y="42" text-anchor="middle" fill="#ffb347" font-size="9" font-family="'IBM Plex Mono'">💉 ${injection}</text>`;
+  
+  html += `<rect x="410" y="75" width="120" height="35" fill="${spark.includes('SPARK') ? 'rgba(255,107,74,0.3)' : '#1a2230'}" stroke="${spark.includes('SPARK') ? '#ff6b4a' : '#2a3344'}" stroke-width="2" rx="6"/>`;
+  html += `<text x="470" y="97" text-anchor="middle" fill="#ff6b4a" font-size="9" font-family="'IBM Plex Mono'">⚡ ${spark}</text>`;
+  
+  // Arrow from processor to outputs
+  html += `<line x1="355" y1="37" x2="410" y2="37" stroke="#ffb347" stroke-width="2" stroke-dasharray="4,3">
+    <animate attributeName="stroke-dashoffset" from="0" to="-14" dur="0.3s" repeatCount="indefinite"/>
+  </line>`;
+  html += `<line x1="355" y1="92" x2="410" y2="92" stroke="#ff6b4a" stroke-width="2" stroke-dasharray="4,3">
+    <animate attributeName="stroke-dashoffset" from="0" to="-14" dur="0.3s" repeatCount="indefinite"/>
+  </line>`;
+  
+  // ECU Mode
+  html += `<rect x="150" y="180" width="250" height="50" fill="rgba(61,220,132,0.1)" stroke="#3ddc84" stroke-width="2" rx="8"/>`;
+  html += `<text x="275" y="205" text-anchor="middle" fill="#3ddc84" font-size="14" font-family="'IBM Plex Mono'" font-weight="bold">${ecuMode}</text>`;
+  html += `<text x="275" y="222" text-anchor="middle" fill="#7d8590" font-size="9" font-family="'IBM Plex Mono'">Stroke: ${stroke} | TDC: ${compTDC ? 'YES ⚡' : 'no'}</text>`;
+  
+  svg.innerHTML = html;
+}
+
+// ===== UPDATE LIVE DATA =====
+function updateLiveData(crank, cam, stroke, cmpSignal, injection, spark, ecuMode) {
+  document.getElementById('liveRPM').textContent = rpm;
+  document.getElementById('liveAngle').textContent = Math.round(crank % 360) + '°';
+  document.getElementById('livePulses').textContent = Math.round((rpm / 60) * 58);
+  document.getElementById('liveCKPStatus').textContent = ckpFault ? 'FAULT!' : 'OK';
+  document.getElementById('liveCKPStatus').style.color = ckpFault ? '#ff4444' : '#3ddc84';
+  
+  document.getElementById('liveCamAngle').textContent = Math.round(cam) + '°';
+  document.getElementById('liveStroke').textContent = stroke;
+  document.getElementById('liveCMP').textContent = cmpSignal;
+  document.getElementById('liveCMPStatus').textContent = cmpFault ? 'FAULT!' : 'OK';
+  document.getElementById('liveCMPStatus').style.color = cmpFault ? '#ff4444' : '#3ddc84';
+  
+  document.getElementById('liveInjection').textContent = injection;
+  document.getElementById('liveSpark').textContent = spark;
+  document.getElementById('liveECUMode').textContent = ecuMode;
+  document.getElementById('liveECUMode').style.color = (ckpFault || cmpFault) ? '#ffb347' : '#3ddc84';
+  
+  // DTC codes
+  let dtc = 'None';
+  if (ckpFault) dtc = 'P0335 - CKP Circuit Malfunction';
+  if (cmpFault) dtc = 'P0340 - CMP Circuit Malfunction';
+  if (ckpFault && cmpFault) dtc = 'P0335 & P0340';
+  document.getElementById('liveDTC').textContent = dtc;
+  document.getElementById('liveDTC').style.color = (ckpFault || cmpFault) ? '#ff4444' : '#7d8590';
+}
+
+// ===== UI CONTROLS =====
+function updateRPM(value) {
+  rpm = parseInt(value);
+  document.getElementById('rpmValue').textContent = rpm;
+}
+
+function switchView(view) {
+  currentView = view;
+  
+  // Update tab buttons
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.className = 'tab-btn';
+  });
+  
+  if (view === 'both') document.getElementById('tabBoth').classList.add('active-both');
+  else if (view === 'ckp') document.getElementById('tabCKP').classList.add('active-ckp');
+  else if (view === 'cmp') document.getElementById('tabCMP').classList.add('active-cmp');
+  
+  // Adjust panel visibility based on view
+  const enginePanel = document.getElementById('enginePanel');
+  const scopePanel = document.getElementById('scopePanel');
+  const ecuPanel = document.getElementById('ecuPanel');
+  const diagPanel = document.getElementById('diagPanel');
+  
+  // All panels visible in 'both' mode
+  enginePanel.style.display = 'block';
+  diagPanel.style.display = 'block';
+  
+  if (view === 'ckp') {
+    scopePanel.querySelector('.panel-header span:last-child').innerHTML = '<span style="color:var(--ckp);">CKP SIGNAL</span>';
+    ecuPanel.querySelector('.panel-header span:last-child').innerHTML = '<span style="color:var(--green);">● CKP PROCESSING</span>';
+  } else if (view === 'cmp') {
+    scopePanel.querySelector('.panel-header span:last-child').innerHTML = '<span style="color:var(--cmp);">CMP SIGNAL</span>';
+    ecuPanel.querySelector('.panel-header span:last-child').innerHTML = '<span style="color:var(--green);">● CMP PROCESSING</span>';
+  } else {
+    scopePanel.querySelector('.panel-header span:last-child').innerHTML = '<span style="color:var(--ckp);">CKP <span style="color:var(--cmp);">| CMP</span></span>';
+    ecuPanel.querySelector('.panel-header span:last-child').innerHTML = '<span style="color:var(--green);">● PROCESSING</span>';
+  }
+}
+
+function toggleFault(sensor) {
+  if (sensor === 'ckp') {
+    ckpFault = !ckpFault;
+    const btn = document.getElementById('faultCKP');
+    if (ckpFault) {
+      btn.classList.add('active-fault');
+      btn.textContent = '⚠ CKP FAULT ACTIVE';
+      document.getElementById('ckpStatus').classList.remove('active');
+      document.getElementById('ckpStatus').classList.add('inactive');
+    } else {
+      btn.classList.remove('active-fault');
+      btn.textContent = '⚠ Simulate CKP Fault';
+      document.getElementById('ckpStatus').classList.add('active');
+      document.getElementById('ckpStatus').classList.remove('inactive');
+    }
+  } else if (sensor === 'cmp') {
+    cmpFault = !cmpFault;
+    const btn = document.getElementById('faultCMP');
+    if (cmpFault) {
+      btn.classList.add('active-fault');
+      btn.textContent = '⚠ CMP FAULT ACTIVE';
+      document.getElementById('cmpStatus').classList.remove('active');
+      document.getElementById('cmpStatus').classList.add('inactive');
+    } else {
+      btn.classList.remove('active-fault');
+      btn.textContent = '⚠ Simulate CMP Fault';
+      document.getElementById('cmpStatus').classList.add('active');
+      document.getElementById('cmpStatus').classList.remove('inactive');
+    }
+  }
+  
+  // Update ECU status
+  if (ckpFault || cmpFault) {
+    document.getElementById('ecuStatus').classList.remove('active');
+    document.getElementById('ecuStatus').classList.add('inactive');
+  } else {
+    document.getElementById('ecuStatus').classList.add('active');
+    document.getElementById('ecuStatus').classList.remove('inactive');
+  }
+}
+
+// ===== KEYBOARD CONTROLS =====
+document.addEventListener('keydown', (e) => {
+  switch(e.key.toLowerCase()) {
+    case 'arrowup':
+      e.preventDefault();
+      rpm = Math.min(6000, rpm + 200);
+      document.getElementById('rpmSlider').value = rpm;
+      document.getElementById('rpmValue').textContent = rpm;
+      break;
+    case 'arrowdown':
+      e.preventDefault();
+      rpm = Math.max(600, rpm - 200);
+      document.getElementById('rpmSlider').value = rpm;
+      document.getElementById('rpmValue').textContent = rpm;
+      break;
+    case 'f':
+      toggleFault('ckp');
+      break;
+    case 'g':
+      toggleFault('cmp');
+      break;
+    case '1':
+      switchView('both');
+      break;
+    case '2':
+      switchView('ckp');
+      break;
+    case '3':
+      switchView('cmp');
+      break;
+  }
+});
+
+// ===== INITIALIZATION =====
+function init() {
+  resizeBG();
+  for (let i = 0; i < 60; i++) bgParticles.push(new BGParticle());
+  animateBG();
+  
+  // Start engine simulation
+  animationId = requestAnimationFrame(simulateEngine);
+  
+  console.log('🔬 SensorSymphony Live Engine Simulator');
+  console.log('⚙️ Controls: ↑↓ RPM | F = CKP Fault | G = CMP Fault | 1/2/3 = Views');
+}
+
+window.addEventListener('resize', resizeBG);
+window.addEventListener('load', init);
+</script>
+
+</body>
+</html>
